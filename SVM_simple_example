@@ -1,0 +1,76 @@
+import pandas as pd
+import numpy as np
+from sklearn.svm import SVC
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.model_selection import GridSearchCV
+import matplotlib.pyplot as plt
+
+pd.set_option('display.max_row',200)
+pd.set_option('display.max_columns',1000)
+pd.set_option('display.width', 1000)
+
+#读取数据集
+data = pd.read_excel('C:/Users/Administrator/Desktop/exercise.xlsx')
+#data
+x_train = data.ix[:,:35 ]
+#数据标准化
+x_train = StandardScaler().fit_transform(x_train)
+#target
+y_train = data.ix[:, 35]
+# print(x_text)
+
+#划分数据集，60%用于训练，40%用于测试
+xtrain, xtest, ytrain, ytest = train_test_split(x_train, y_train, train_size =0.6, random_state = 1)
+
+#
+# 比较4种核函数的的表现效果
+Kernel = ['linear', 'poly', 'rbf', 'sigmoid']
+for kernel in Kernel:
+    clf = SVC(kernel = kernel,
+              gamma = 'auto',
+              cache_size = 5000).fit(xtrain, ytrain)
+    print(kernel, clf.score(xtest, ytest))
+
+
+#找rbf核函数的最优gamma值
+score = []
+gamma_range = np.logspace(-10, 1, 200)
+for i in gamma_range:
+    clf = SVC(kernel = 'rbf',
+              gamma = i,
+              cache_size = 5000).fit(xtrain, ytrain)
+    score.append(clf.score(xtest, ytest))
+print("max precison:",max(score), '\n', "max gamma:", gamma_range[score.index(max(score))])
+plt.plot(gamma_range, score)
+plt.xlabel("gamma")
+plt.ylabel("score")
+plt.show()
+
+
+#使用网格搜索调整poly的最优参数
+gamma_range = np.logspace(-10, 1, 20)
+coef0_range = np.linspace(0, 5, 10)
+param_grid = dict(gamma = gamma_range,
+             coef0 = coef0_range)
+cv = StratifiedShuffleSplit(n_splits = 5, test_size = 0.6, random_state = 1)
+grid = GridSearchCV(SVC(kernel = 'poly',
+                        degree = 1,
+                        cache_size = 5000), param_grid = param_grid, cv = cv).fit(xtest, ytest)
+print((grid.best_params_),'\nscore:', grid.best_score_)
+
+#
+#调惩罚参数
+score = []
+C_range = np.linspace(0.01, 2, 50)
+for i in C_range:
+    clf = SVC(kernel = 'linear',
+              C = i,
+              cache_size = 5000).fit(xtrain, ytrain)
+    score.append(clf.score(xtest, ytest))
+print('max_score:', max(score), '\n', 'max_C', C_range[score.index(max(score))])
+plt.plot(C_range, score)
+plt.xlabel('C')
+plt.ylabel('score')
+plt.show()
