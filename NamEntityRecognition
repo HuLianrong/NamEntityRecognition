@@ -1,0 +1,131 @@
+
+from nltk.tag import StanfordNERTagger
+import os, nltk, time, xlsxwriter, re
+
+
+def parse_document(document):
+   document = re.sub('\n', '', document)
+   if isinstance(document, str):
+       document = document
+   else:
+       raise ValueError('Document is not string!')
+   document = document.strip()
+   sentences = nltk.sent_tokenize(document)
+   sentences = [sentence.strip() for sentence in sentences]
+   return sentences
+
+#清除重复的字符串
+def del_repetitive_word(list):
+    re_list = []
+    for i in list:
+        if i not in re_list:
+            re_list.append(i)
+    return re_list
+
+rootdir = r'F:/dataset/nltk-data/corpora/reuters/corpus/'
+file_dir = r'F:/dataset/nltk-data/corpora/reuters/NameDic/'
+
+
+Name = xlsxwriter.Workbook('F:/dataset/nltk-data/corpora/reuters/Name.xlsx')
+sheet1 = Name.add_worksheet('sheet1')
+
+#
+##------------筛选字数大于400的文档-------------------------------------------------
+# for i in range(14825, 21577):
+#     old_path = os.path.join(rootdir, str(i))
+#     file = os.path.isfile(old_path)
+#     if file:
+#         new_path = os.path.join(file_dir, str(i))
+#         f = open(old_path).read()
+#         words_num = len(f.split())
+#         if words_num >= 350:
+#             print(words_num)
+#             shutil.copyfile(old_path, new_path)
+##------------筛选字数大于400的文档-------------------------------------------------
+
+#-------------------StandardNER---------------------------------------------------------------
+
+k=0
+for i in range(0, 21573):
+    try:
+        t0 = time.time()
+        old_path = os.path.join(rootdir, str(i))
+        file = os.path.isfile(old_path)
+        if file:
+
+            t0 = time.time()
+            new_path = os.path.join(file_dir, str(i), '.xlsx')
+            # sample document
+            text = open(old_path).read()
+
+            sentences = parse_document(text)
+            tokenized_sentences = [nltk.word_tokenize(sentence) for sentence in sentences]
+
+            # StandfordNER
+            # # set java path in environment variables
+            java_path = 'E:/jdk1.8.0_131/bin/java.exe'
+            os.environ['JAVAHOME'] = java_path
+            model = 'E:/Anaconda3/Scripts/stanford-ner-2018-10-16/classifiers/english.muc.7class.distsim.crf.ser.gz'
+            jar = 'E:/Anaconda3/Scripts/stanford-ner-2018-10-16/stanford-ner.jar'
+
+            # load stanford NER
+            sn = StanfordNERTagger(model, jar)
+
+            # tag sentences
+            ne_annotated_sentences = [sn.tag(sent) for sent in tokenized_sentences]
+            # extract named entities
+            named_entities = []
+            for sentence in ne_annotated_sentences:
+                temp_entity_name = ''
+                temp_named_entity = None
+                for term, tag in sentence:
+                    # get terms with NE tags
+                    if tag != 'O':
+                        temp_entity_name = ' '.join([temp_entity_name, term]).strip()  # get NE name
+                        temp_named_entity = (temp_entity_name, tag)  # get NE and its category
+                    else:
+                        if temp_named_entity:
+                            named_entities.append(temp_named_entity)
+                            temp_entity_name = ''
+                            temp_named_entity = None
+
+            # get unique named entities
+            named_entities1 = list(set(named_entities))
+
+            #去掉DATE, MONEY类型的指称
+            # for li1 in named_entities1:
+            #     if li1[1]=='DATE' or li1[1]=='MONEY':
+            #         named_entities1.remove(li1)
+
+            named_entities2 = named_entities1
+            named_entities3 = []
+
+            # 去掉较小的指称
+            for li1 in named_entities1:
+                for li2 in named_entities2:
+                    if li1[0] == li2[0]:
+                        continue
+                    if re.search(li1[0], li2[0], re.IGNORECASE):
+                        named_entities3.append(li1)
+                    continue
+            names = list(set(named_entities1) - set(named_entities3))
+
+
+            # # store named entities in a data frame
+            # entity_frame = pd.DataFrame(names, columns = ['Entity Name', 'Entity Type'])
+            # entity_names = list(entity_frame['Entity Name'].values)
+            # # display results
+            for name in names:
+                k = k + 1
+                sheet1.write(k, 0, name[0])
+                sheet1.write(k, 1, name[1])
+                sheet1.write(k, 2, i)
+
+            print(i, 'success', time.time()-t0)
+
+    except BaseException:
+        print(i, 'error')
+Name.close()
+
+
+##-------------------StandardNER  END---------------------------------------------------------------
